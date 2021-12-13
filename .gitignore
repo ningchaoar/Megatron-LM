@@ -1,2 +1,8 @@
 __pycache__
-
+datas
+logs
+checkpoints
+build
+*.so
+*.npy
+wandb*

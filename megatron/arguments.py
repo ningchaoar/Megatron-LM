@@ -397,7 +397,8 @@ def _add_network_size_args(parser):
 
 def _add_logging_args(parser):
     group = parser.add_argument_group(title='logging')
-
+    group.add_argument('--use-wandb', action='store_true',
+                       help='If set, use wandb while training.')
     group.add_argument('--log-params-norm', action='store_true',
                        help='If set, calculate and log parameters norm.')
     group.add_argument('--log-num-zeros-in-grad', action='store_true',

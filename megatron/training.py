@@ -54,6 +54,9 @@ from megatron.schedules import get_forward_backward_func
 from megatron.utils import report_memory
 from megatron.model.vision.knn_monitor import compute_feature_bank
 
+import re
+import wandb
+
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -696,7 +699,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             report_memory_flag = False
         timers.log(timers_to_log, normalizer=args.log_interval)
 
-    return report_memory_flag
+    return report_memory_flag, log_string
 
 
 def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
@@ -720,6 +723,16 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Write args to tensorboard
     write_args_to_tensorboard()
+
+    # Wandb initialization
+    if torch.distributed.is_initialized() and args.use_wandb:
+        if torch.distributed.get_rank() == 0:
+            wandb.login(key="5d0c34bbbd4d0b7068def09b3ce97564a5ed9291")
+            wandb.init(project="torch-gpt2-gpu", settings=wandb.Settings(console="wrap"),
+                    name='medium_wikicorpus_50256_1024_bs512')
+            wandb_config = vars(args)
+            # wandb_config['sdk_version'] = get_sdk_version()
+            wandb.config.update(wandb_config)
 
     # Turn on training mode which enables dropout.
     for model_module in model:
@@ -753,11 +766,26 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         params_norm = None
         if args.log_params_norm:
             params_norm = calc_params_l2_norm(model)
-        report_memory_flag = training_log(loss_dict, total_loss_dict,
+        report_memory_flag, log_string = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
                                           grad_norm, params_norm, num_zeros_in_grad)
+
+        # Wandb logging
+        if torch.distributed.is_initialized() and args.use_wandb:
+            if torch.distributed.get_rank() == 0:
+                lm_loss = re.findall("lm loss:(.*?)\|", log_string)
+                if lm_loss:
+                    lm_loss = float(lm_loss[0].strip())
+                else:
+                    lm_loss = float(0)
+                elapsed_time = float(re.findall("elapsed time per iteration \(ms\):(.*?)\|", log_string)[0].strip())
+                wandb.log({"Loss": lm_loss,
+                        "LR": optimizer.param_groups[0]['lr'],
+                        "Step": iteration,
+                        "Loss Scale": loss_scale,
+                        "Throughput": args.global_batch_size / (elapsed_time / 1000)})
 
         # Autoresume
         if args.adlr_autoresume and \

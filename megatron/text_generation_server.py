@@ -36,31 +36,35 @@ class MegatronGenerate(Resource):
      
     def put(self):
         args = get_args()
+        print("request IP: " + str(request.remote_addr))
+        request_json = json.loads(request.get_data(as_text=True))
+        print(request_json,flush=True)
+        print("current time: ", datetime.datetime.now())
        
-        if not "prompts" in request.get_json():
+        if not "prompts" in request_json:
             return "prompts argument required", 400
         
-        if "max_len" in request.get_json():
+        if "max_len" in request_json:
             return "max_len is no longer used.  Replace with tokens_to_generate", 400
         
-        if "sentences" in request.get_json():
+        if "sentences" in request_json:
             return "sentences is no longer used.  Replace with prompts", 400
 
-        prompts = request.get_json()["prompts"]
+        prompts = request_json["prompts"]
         if len(prompts) > 128:
             return "Maximum number of prompts is 128", 400
 
         tokens_to_generate = 64  # Choosing hopefully sane default.  Full sequence is slow
-        if "tokens_to_generate" in request.get_json():
-            tokens_to_generate = request.get_json()["tokens_to_generate"]
+        if "tokens_to_generate" in request_json:
+            tokens_to_generate = request_json["tokens_to_generate"]
             if not isinstance(tokens_to_generate, int):
                 return "tokens_to_generate must be an integer greater than 0"
             if tokens_to_generate < 0:
                 return "tokens_to_generate must be an integer greater than or equal to 0"
 
         logprobs = False
-        if "logprobs" in request.get_json():
-            logprobs = request.get_json()["logprobs"]
+        if "logprobs" in request_json:
+            logprobs = request_json["logprobs"]
             if not isinstance(logprobs, bool):
                 return "logprobs must be a boolean value"
         
@@ -68,24 +72,24 @@ class MegatronGenerate(Resource):
             return "tokens_to_generate=0 implies logprobs should be True"
         
         temperature = 1.0
-        if "temperature" in request.get_json():
-            temperature = request.get_json()["temperature"]
+        if "temperature" in request_json:
+            temperature = request_json["temperature"]
             if not (type(temperature) == int or type(temperature) == float):
                 return "temperature must be a positive number less than or equal to 100.0"
             if not (0.0 < temperature <= 100.0):
                 return "temperature must be a positive number less than or equal to 100.0"
         
         top_k = 0.0
-        if "top_k" in request.get_json():
-            top_k = request.get_json()["top_k"]
+        if "top_k" in request_json:
+            top_k = request_json["top_k"]
             if not (type(top_k) == int):
                 return "top_k must be an integer equal to or greater than 0 and less than or equal to 1000"
             if not (0 <= top_k <= 1000):
                 return "top_k must be equal to or greater than 0 and less than or equal to 1000"
         
         top_p = 0.0
-        if "top_p" in request.get_json():
-            top_p = request.get_json()["top_p"]
+        if "top_p" in request_json:
+            top_p = request_json["top_p"]
             if not (type(top_p) == float):
                 return "top_p must be a positive float less than or equal to 1.0"
             if top_p > 0.0 and top_k > 0.0:
@@ -94,8 +98,8 @@ class MegatronGenerate(Resource):
                 return "top_p must be less than or equal to 1.0"
         
         add_BOS = False
-        if "add_BOS" in request.get_json():
-            add_BOS = request.get_json()["add_BOS"]
+        if "add_BOS" in request_json:
+            add_BOS = request_json["add_BOS"]
             if not isinstance(add_BOS, bool):
                 return "add_BOS must be a boolean value"
         
