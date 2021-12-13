@@ -27,6 +27,14 @@ from .language_model import get_language_model
 from .utils import init_method_normal
 from .utils import scaled_init_method_normal
 
+import pdb
+import wandb
+
+
+def calculate_acc(logit, labels, ignore_index=-100):
+    mask = (labels != ignore_index).float()
+    non_pad_mask = mask.sum(-1).unsqueeze(-1)
+    return (logit.argmax(dim=-1) == labels).float().mul(mask).div(non_pad_mask).sum(-1).mean()
 
 def post_language_model_processing(lm_output, labels, logit_weights,
                                    parallel_output,
@@ -37,6 +45,8 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         lm_output,
         logit_weights,
         parallel_output)
+
+    wandb.log({"Accuarcy": calculate_acc(output, labels)}, commit=False)
 
     if labels is None:
         return output

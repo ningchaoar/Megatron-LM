@@ -14,21 +14,19 @@
 # limitations under the License.
 import json
 import sys
-import urllib2
-class PutRequest(urllib2.Request):
-    '''class to handling putting with urllib2'''
+import requests
 
-    def get_method(self, *args, **kwargs):
-        return 'PUT'
+# class PutRequest(urllib.request):
+#     '''class to handling putting with urllib2'''
+
+#     def get_method(self, *args, **kwargs):
+#         return 'PUT'
 
 if __name__ == "__main__":
-    url = sys.argv[1]
+    url = "http://0.0.0.0:5000/api"
     while True:
-        sentence = raw_input("Enter prompt: ")
-        tokens_to_generate = int(input("Enter number of tokens to generate: "))
-        data = json.dumps({"prompts": [sentence], "tokens_to_generate":tokens_to_generate})
-        req = PutRequest(url, data, {'Content-Type': 'application/json'})
-        response = urllib2.urlopen(req)
-        resp_sentences = json.load(response)
+        sentence = input("Enter prompt: ")
+        response = requests.put(url, data=json.dumps({"prompts": sentence, "tokens_to_generate":100}), headers={'Content-Type': 'application/json; charset=UTF-8'})
+        resp_sentences = response.json()
         print("Megatron Response: ")
         print(resp_sentences["text"][0])

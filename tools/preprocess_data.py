@@ -80,6 +80,8 @@ class Encoder(object):
         ids = {}
         for key in self.args.json_keys:
             text = data[key]
+            if len(text) == 0:
+                continue
             doc_ids = []
             for sentence in Encoder.splitter.tokenize(text):
                 sentence_ids = Encoder.tokenizer.tokenize(sentence)
