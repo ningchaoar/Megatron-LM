@@ -45,8 +45,8 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         lm_output,
         logit_weights,
         parallel_output)
-
-    wandb.log({"Accuarcy": calculate_acc(output, labels)}, commit=False)
+    if torch.distributed.get_rank() == 0:
+        wandb.log({"Accuarcy": calculate_acc(output, labels)}, commit=False)
 
     if labels is None:
         return output
