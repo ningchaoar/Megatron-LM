@@ -407,6 +407,15 @@ def _add_regularization_args(parser):
     group.add_argument('--adam-eps', type=float, default=1e-08,
                        help='Term added to the denominator to improve'
                        'numerical stability')
+    group.add_argument('--lamb-beta1', type=float, default=0.9,
+                       help='First coefficient for computing running averages '
+                       'of gradient and its square')
+    group.add_argument('--lamb-beta2', type=float, default=0.999,
+                       help='Second coefficient for computing running averages '
+                       'of gradient and its square')
+    group.add_argument('--lamb-eps', type=float, default=1e-06,
+                       help='Term added to the denominator to improve'
+                       'numerical stability')
     group.add_argument('--sgd-momentum', type=float, default=0.9,
                        help='Momentum factor for sgd')
 

@@ -1,7 +1,7 @@
 #! /bin/bash
 time=$(date "+%Y%m%d%H%M%S")
 # Runs the "345M" parameter model
-GPUS_PER_NODE=4
+GPUS_PER_NODE=8
 # Change for multinode config
 export MASTER_ADDR=localhost
 export MASTER_PORT=6000
@@ -19,7 +19,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --num-layers 24 \
        --hidden-size 1024 \
        --num-attention-heads 16 \
-       --micro-batch-size 64 \
+       --micro-batch-size 256 \
        --global-batch-size 16384 \
        --seq-length 128 \
        --max-position-embeddings 128 \
