@@ -100,8 +100,8 @@ def get_megatron_optimizer(model,
         optimizer = LAMB(param_groups,
                          lr=args.lr,
                          weight_decay=args.weight_decay,
-                         betas=(args.adam_beta1, args.adam_beta2),
-                         eps=args.adam_eps,
+                         betas=(args.lamb_beta1, args.lamb_beta2),
+                         eps=args.lamb_eps,
                          bias_correction=True)
     else:
         raise Exception('{} optimizer is not supported.'.format(
