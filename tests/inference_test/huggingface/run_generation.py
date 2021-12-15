@@ -183,9 +183,12 @@ def generate(args, model, tokenizer):
         target_length=args.length + len(encoded_prompt[0])
     else:
         input_ids = torch.randint(low=0, high=50256, size=(1, random.randint(1, 5))).to(args.device)
-        target_length = random.randint(6, 128)
+        target_length = max(args.length, input_ids.shape[1] + 1)
     
     start_time = time.time()
+    """
+    https://github.com/huggingface/transformers/blob/master/src/transformers/generation_utils.py#L650
+    """
     output_sequences = model.generate(
         input_ids=input_ids,
         max_length=target_length,
@@ -195,6 +198,7 @@ def generate(args, model, tokenizer):
         repetition_penalty=args.repetition_penalty,
         do_sample=True,
         num_return_sequences=args.num_return_sequences,
+        use_cache=args.use_cache
     )
     end_time = time.time()
     elapsed_time = float(end_time - start_time) * 1000
@@ -277,6 +281,11 @@ def main():
         action="store_true",
         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
     )
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Whether or not the model should use the past last key/values attentions (if applicable to the model) to speed up decoding.")
+
     args = parser.parse_args()
 
     args.device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -304,13 +313,13 @@ def main():
     logger.info(args)
 
     latency_per_token = 0
-    for _ in range(100):
+    for _ in range(10):
         _, t = generate(args, model, tokenizer)
         latency_per_token += t
-    print("averaged latency per token (ms): {}".format(latency_per_token / 100))
+    print("averaged latency per token (ms): {}".format(latency_per_token / 10))
 
 if __name__ == "__main__":
     """
-    python run_generation.py --model_type=gpt2 --model_name_or_path=gpt2 --fp16 --latency-test
+    python run_generation.py --model_type=gpt2 --model_name_or_path=gpt2 --length=1024 --fp16 --latency-test
     """
     main()
