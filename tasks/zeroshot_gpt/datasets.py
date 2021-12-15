@@ -93,17 +93,22 @@ class _LambadaDataset(torch.utils.data.Dataset):
             for line in f.readlines():
                 text = json.loads(line)['text']
                 tokens, labels = self.get_tokens(text)
-                self.tokens.append(tokens)
-                self.labels.append(labels)
+                if tokens:
+                    self.tokens.append(tokens)
+                    self.labels.append(labels)
 
     def get_tokens(self, text):
         if not self.strict:
             tokens = self.tokenizer.tokenize(text)
+            if len(tokens) > self.seq_len:
+                tokens = tokens[:self.seq_len]
             return tokens[:-1], [tokens[-1]]
         last_token = text.split()[-1]
         start_idx = text.rfind(last_token)
         beginning_tokens = self.tokenizer.tokenize(text[:start_idx].strip())
         last_token = self.tokenizer.tokenize(' ' + last_token)
+        if len(beginning_tokens) + len(last_token) > self.seq_len:
+            return None, None
         return beginning_tokens, last_token
 
     def __len__(self):

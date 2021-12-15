@@ -49,5 +49,3 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --fp16 \
        --no-save-optim \
        --no-save-rng 2>&1 | tee logs/medium_wikicorpus_50256_128_lamb_bs16384_$time.log
-
-
