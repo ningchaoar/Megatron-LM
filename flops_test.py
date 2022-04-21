@@ -1,6 +1,7 @@
+import argparse
 import torch
 import numpy as np
-# pip install transformers -i https://pypi.python.org/simple
+# pip install deepspeed transformers -i https://pypi.python.org/simple
 from transformers import GPT2Config, GPT2LMHeadModel
 from deepspeed.profiling.flops_profiler import FlopsProfiler
 
@@ -21,9 +22,9 @@ class MyDataset(torch.utils.data.Dataset):
         return len(self.input_list)
 
 print("Model Initializing")
-model_config = GPT2Config.from_json_file("flops/config_medium.json")
+model_config = GPT2Config.from_json_file("flops/config_large.json")
 model = GPT2LMHeadModel(model_config)
-model.train().to("cuda")
+model.half().train().to("cuda")
 prof = FlopsProfiler(model)
 
 regularized_params = []
