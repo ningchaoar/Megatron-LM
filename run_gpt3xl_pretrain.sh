@@ -10,19 +10,22 @@ NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 DATA_PATH=./datas/my-gpt2_text_document
-CHECKPOINT_PATH=./checkpoints/medium_wikicorpus_50256_128_lamb_bs16384
+CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_50256_2048_adam_bs512
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        pretrain_gpt.py \
+       --tensor-model-parallel-size 2 \
+       --pipeline-model-parallel-size 2 \
+       --sequence-parallel \
        --num-layers 24 \
-       --hidden-size 1024 \
+       --hidden-size 2048 \
        --num-attention-heads 16 \
-       --micro-batch-size 256 \
-       --global-batch-size 16384 \
-       --seq-length 128 \
-       --max-position-embeddings 128 \
+       --micro-batch-size 16 \
+       --global-batch-size 512 \
+       --seq-length 2048 \
+       --max-position-embeddings 2048 \
        --train-iters 50000 \
        --lr-decay-iters 40000 \
        --save $CHECKPOINT_PATH \
@@ -33,10 +36,9 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
-       --optimizer lamb \
-       --lr 0.006 \
-       --min-lr 1.0e-5 \
+       --lr 0.00015 \
        --lr-decay-style cosine \
+       --min-lr 1.0e-5 \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
@@ -46,6 +48,4 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save-interval 1000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --fp16 \
-       --no-save-optim \
-       --no-save-rng 2>&1 | tee logs/medium_wikicorpus_50256_128_lamb_bs16384_$time.log
+       --fp16
