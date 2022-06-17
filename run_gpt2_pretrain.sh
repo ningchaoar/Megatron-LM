@@ -6,8 +6,8 @@ export MASTER_PORT=6000
 RANK=0
 WORLD_SIZE=1
 
-DATA_PATH=./datas/my-gpt2_text_document
-CHECKPOINT_PATH=./checkpoints/medium_wikicorpus_50256_1024_bs256
+DATA_PATH=./datas/openwebtext_text_document
+CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_tp2_pp2_sp_bs16_gbs1024
 
 
 python pretrain_gpt.py \
@@ -18,8 +18,8 @@ python pretrain_gpt.py \
        --global-batch-size 64 \
        --seq-length 1024 \
        --max-position-embeddings 1024 \
-       --train-iters 100000 \
-       --lr-decay-iters 64000 \
+       --train-iters 1000 \
+       --lr-decay-iters 640 \
        --save $CHECKPOINT_PATH \
        --load $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
@@ -35,13 +35,12 @@ python pretrain_gpt.py \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --activations-checkpoint-method uniform \
-       --use-wandb \
        --log-interval 1 \
        --save-interval 5000 \
        --eval-interval 1000 \
        --eval-iters 10 \
        --fp16 \
        --no-save-optim \
-       --no-save-rng 2>&1 | tee logs/medium_wikicorpus_50256_1024_bs512_$time.log
+       --no-save-rng
 
 

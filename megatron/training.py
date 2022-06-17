@@ -656,8 +656,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     if torch.distributed.is_initialized() and args.use_wandb:
         if torch.distributed.get_rank() == 0:
             wandb.login(key="5d0c34bbbd4d0b7068def09b3ce97564a5ed9291")
-            wandb.init(project="torch-gpt2-gpu", settings=wandb.Settings(console="wrap"),
-                    name='medium_wikicorpus_50256_1024_bs512')
+            wandb.init(project="torch-gpt3-gpu", settings=wandb.Settings(console="wrap"),
+                    name='gpt3xl_openwebtext_50256_sl2048_bs64_gbs1024')
             wandb_config = vars(args)
             # wandb_config['sdk_version'] = get_sdk_version()
             wandb.config.update(wandb_config)

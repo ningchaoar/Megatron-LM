@@ -38,19 +38,20 @@ def calculate_acc(logit, labels, ignore_index=-100):
 
 def post_language_model_processing(lm_output, labels, logit_weights,
                                    parallel_output,
-                                   fp16_lm_cross_entropy):
+                                   fp16_lm_cross_entropy,
+                                   use_wandb=False):
 
     # Output.
     output = parallel_lm_logits(
         lm_output,
         logit_weights,
         parallel_output)
-    if torch.distributed.get_rank() == 0:
-        wandb.log({"Accuarcy": calculate_acc(output, labels)}, commit=False)
 
     if labels is None:
         return output
     else:
+        if use_wandb and torch.distributed.get_rank() == 0:
+            wandb.log({"Accuarcy": calculate_acc(output, labels)}, commit=False)
         if fp16_lm_cross_entropy:
             assert output.dtype == torch.half
             loss = mpu.vocab_parallel_cross_entropy(output, labels)
@@ -74,6 +75,7 @@ class GPTModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+        self.use_wandb = args.use_wandb
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
@@ -105,7 +107,8 @@ class GPTModel(MegatronModule):
                 lm_output, labels,
                 self.word_embeddings_weight(),
                 self.parallel_output,
-                self.fp16_lm_cross_entropy)
+                self.fp16_lm_cross_entropy,
+                self.use_wandb)
         else:
             return lm_output
 
