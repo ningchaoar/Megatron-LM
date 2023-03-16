@@ -28,6 +28,8 @@ from megatron.training import pretrain
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import average_losses_across_data_parallel_group
 
+from megatron.pst.utils import convert_sparse_network
+
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
 
@@ -38,6 +40,10 @@ def model_provider(pre_process=True, post_process=True):
         pre_process=pre_process,
         post_process=post_process
     )
+
+    convert_sparse_network(model.language_model.encoder.layers, pruning_method="pst", weight_rank=8, weight_beta=1.0,
+                           mask_rank=8, mask_alpha1=1.0, mask_alpha2=1.0, block_size=1)
+
     return model
 
 

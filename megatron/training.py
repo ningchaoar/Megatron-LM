@@ -37,7 +37,7 @@ from megatron import mpu
 from megatron import print_rank_0
 from megatron import print_rank_last
 from megatron.checkpointing import load_checkpoint
-from megatron.checkpointing import save_checkpoint
+from megatron.checkpointing import save_checkpoint, get_checkpoint_name
 from megatron.model import Float16Module
 from megatron.model import ModelType
 from megatron.optimizer import get_megatron_optimizer
@@ -52,8 +52,11 @@ from megatron.utils import calc_params_l2_norm
 from megatron.schedules import get_forward_backward_func
 from megatron.utils import report_memory
 
+import os
 import re
 import wandb
+
+from megatron.pst.utils import schedule_sparsity_ratio, update_network_sparsity, save_sparse_model
 
 
 def print_datetime(string):
@@ -356,7 +359,7 @@ def setup_model_and_optimizer(model_provider_func, model_type):
         # max time.
         torch.distributed.barrier()
         timers('load-checkpoint').start()
-        args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
+        args.iteration = load_checkpoint(model, optimizer, lr_scheduler, strict=False)
         torch.distributed.barrier()
         timers('load-checkpoint').stop()
         timers.log(['load-checkpoint'])
@@ -632,12 +635,15 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
 
 def save_checkpoint_and_time(iteration, model, optimizer, lr_scheduler):
+    args = get_args()
     timers = get_timers()
     # Extra barrier is added to make sure
     # all ranks report the max time.
     torch.distributed.barrier()
     timers('save-checkpoint').start()
     save_checkpoint(iteration, model, optimizer, lr_scheduler)
+    sparse_model_path = os.path.join(os.path.dirname(get_checkpoint_name(args.save, iteration)), 'sparse_model.pt') 
+    save_sparse_model(model, sparse_model_path)
     torch.distributed.barrier()
     timers('save-checkpoint').stop()
     timers.log(['save-checkpoint'])
@@ -656,8 +662,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     if torch.distributed.is_initialized() and args.use_wandb:
         if torch.distributed.get_rank() == 0:
             wandb.login(key="5d0c34bbbd4d0b7068def09b3ce97564a5ed9291")
-            wandb.init(project="torch-gpt3-gpu", settings=wandb.Settings(console="wrap"),
-                    name='gpt3xl_openwebtext_50256_sl2048_bs64_gbs1024')
+            wandb.init(project="torch-sparse-gpt3-gpu", settings=wandb.Settings(console="wrap"),
+                    name='gpt2medium_sparse_test')
             wandb_config = vars(args)
             # wandb_config['sdk_version'] = get_sdk_version()
             wandb.config.update(wandb_config)
@@ -699,6 +705,12 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                           report_memory_flag, skipped_iter,
                                           grad_norm, params_norm, num_zeros_in_grad)
 
+        # update network sparsity ratio
+        cur_sparsity = schedule_sparsity_ratio(iteration, total_step=args.train_iters, initial_warmup=0.1, 
+                                               final_warmup=0.3, initial_sparsity=0.0, final_sparsity=0.9)
+        for model_module in model:
+            update_network_sparsity(model_module, cur_sparsity)
+
         # Wandb logging
         if torch.distributed.is_initialized() and args.use_wandb:
             if torch.distributed.get_rank() == 0:
@@ -712,7 +724,9 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                         "LR": optimizer.param_groups[0]['lr'],
                         "Step": iteration,
                         "Loss Scale": loss_scale,
-                        "Throughput": args.global_batch_size / (elapsed_time / 1000)})
+                        "Throughput": args.global_batch_size / (elapsed_time / 1000),
+                        "Sparsity": cur_sparsity},
+                        step=iteration)
 
         # Autoresume
         if args.adlr_autoresume and \

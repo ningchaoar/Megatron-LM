@@ -7,7 +7,7 @@ RANK=0
 WORLD_SIZE=1
 
 DATA_PATH=./datas/openwebtext_text_document
-CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_tp2_pp2_sp_bs16_gbs1024
+CHECKPOINT_PATH=./checkpoints/gpt2_medium_sparse_test
 
 
 python pretrain_gpt.py \
@@ -15,11 +15,11 @@ python pretrain_gpt.py \
        --hidden-size 1024 \
        --num-attention-heads 16 \
        --micro-batch-size 16 \
-       --global-batch-size 64 \
+       --global-batch-size 512 \
        --seq-length 1024 \
        --max-position-embeddings 1024 \
-       --train-iters 1000 \
-       --lr-decay-iters 640 \
+       --train-iters 2000 \
+       --lr-decay-iters 1600 \
        --save $CHECKPOINT_PATH \
        --load $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
@@ -28,19 +28,20 @@ python pretrain_gpt.py \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
-       --lr 0.00015 \
+       --lr 0.0003 \
        --min-lr 1.0e-5 \
        --lr-decay-style cosine \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --activations-checkpoint-method uniform \
+       --use-wandb \
        --log-interval 1 \
-       --save-interval 5000 \
-       --eval-interval 1000 \
+       --save-interval 100 \
+       --eval-interval 100 \
        --eval-iters 10 \
        --fp16 \
-       --no-save-optim \
-       --no-save-rng
+       --finetune \
+       --no-load-optim | tee logs/gpt2_medium_sparse_test_$time.log
 
 
