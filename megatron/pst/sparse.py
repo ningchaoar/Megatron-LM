@@ -2,6 +2,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+_MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {'tensor_model_parallel': False,
+                                      'partition_dim': -1,
+                                      'partition_stride': 1}
+
+
+def set_tensor_model_parallel_attributes(tensor, is_parallel, dim, stride):
+    # Make sure the attributes are not set.
+    for attribute in _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS:
+        assert not hasattr(tensor, attribute)
+    # Set the attributes.
+    setattr(tensor, 'tensor_model_parallel', is_parallel)
+    setattr(tensor, 'partition_dim', dim)
+    setattr(tensor, 'partition_stride', stride)
+
+
 class SparseBinarizer(torch.autograd.Function):
     @staticmethod
     def forward(ctx, mask_scores, sparsity):
@@ -46,13 +62,23 @@ class SparseLinear(nn.Linear):
 
         if self.pruning_method == "pst":
             # create trainable params
-            self.weight_U = nn.Parameter(torch.randn(out_features, self.weight_rank))
-            self.weight_V = nn.Parameter(torch.zeros(self.weight_rank, in_features))
-            
-            self.mask_scores_A = nn.Parameter(torch.randn(out_features, self.mask_rank))
-            self.mask_scores_B = nn.Parameter(torch.zeros(self.mask_rank, in_features))
-            self.mask_scores_R = nn.Parameter(torch.zeros(out_features))
-            self.mask_scores_C = nn.Parameter(torch.zeros(in_features))
+            self.weight_U = nn.Parameter(torch.randn(out_features, self.weight_rank, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.weight_U, True, 0, 1)
+
+            self.weight_V = nn.Parameter(torch.zeros(self.weight_rank, in_features, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.weight_V, True, 0, 1)
+
+            self.mask_scores_A = nn.Parameter(torch.randn(out_features, self.mask_rank, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.mask_scores_A, True, 0, 1)
+
+            self.mask_scores_B = nn.Parameter(torch.zeros(self.mask_rank, in_features, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.mask_scores_B, True, 0, 1)
+
+            self.mask_scores_R = nn.Parameter(torch.zeros(out_features, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.mask_scores_R, True, 0, 1)
+
+            self.mask_scores_C = nn.Parameter(torch.zeros(in_features, device=torch.cuda.current_device(), dtype=torch.half))
+            set_tensor_model_parallel_attributes(self.mask_scores_C, True, 0, 1)
 
             self.weight.requires_grad = False
             if self.bias is not None:
@@ -60,7 +86,8 @@ class SparseLinear(nn.Linear):
 
         # By Angel, test block
         self.block_size = block_size
-        self.conv = nn.Conv2d(1, 4, kernel_size = block_size//2, stride = block_size//2)
+        self.conv = nn.Conv2d(1, 4, kernel_size = block_size//2, stride = block_size//2, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
+        set_tensor_model_parallel_attributes(self.conv.weight, True, 0, 1)
         self.pooling = nn.MaxPool2d(kernel_size = 2)
         #self.pooling = nn.MaxPool2d(kernel_size = block_size)
         self.unsampling = nn.UpsamplingNearest2d(scale_factor = block_size)
@@ -93,9 +120,9 @@ class SparseLinear(nn.Linear):
 
             masked_weight = mask * weight
 
-            return F.linear(inputs, masked_weight, self.bias)
+            return F.linear(inputs, masked_weight, self.bias), self.bias
         else:
-            return F.linear(inputs, self.weight, self.bias)
+            return F.linear(inputs, self.weight, self.bias), self.bias
     
     def convert(self):
         if self.pruning_method == "pst":

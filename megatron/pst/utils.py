@@ -4,7 +4,8 @@ import torch.nn as nn
 
 from collections import OrderedDict
 
-from pst.sparse import SparseLinear
+from megatron.mpu import ColumnParallelLinear, RowParallelLinear
+from megatron.pst.sparse import SparseLinear
 
 def _setattr(model, name, module):
     name_list = name.split(".")
@@ -24,8 +25,8 @@ def convert_sparse_network(
     logger=None
 ):
     for name, module in model.named_modules():
-        if isinstance(module, nn.Linear):
-            new_module = SparseLinear(module.in_features, module.out_features,
+        if isinstance(module, ColumnParallelLinear) or isinstance(module, RowParallelLinear):
+            new_module = SparseLinear(module.input_size, module.output_size,
                 module.bias is not None, pruning_method, weight_rank, weight_beta,
                 mask_rank, mask_alpha1, mask_alpha2, block_size)
 
@@ -66,6 +67,9 @@ def schedule_sparsity_ratio(
     return sparsity
 
 def save_sparse_model(model, save_path, logger=None):
+    if isinstance(model, list):
+        assert len(model)==1
+        model = model[0]
     # convert dense weight to sparse weight
     for name, module in model.named_modules():
         if isinstance(module, SparseLinear):
