@@ -28,7 +28,7 @@ def convert_sparse_network(
         if isinstance(module, ColumnParallelLinear) or isinstance(module, RowParallelLinear):
             new_module = SparseLinear(module.input_size, module.output_size,
                 module.bias is not None, pruning_method, weight_rank, weight_beta,
-                mask_rank, mask_alpha1, mask_alpha2, block_size)
+                mask_rank, mask_alpha1, mask_alpha2, block_size, module.skip_bias_add)
 
             new_module.weight.data = module.weight.data
             if module.bias is not None:

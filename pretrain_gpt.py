@@ -42,7 +42,7 @@ def model_provider(pre_process=True, post_process=True):
     )
 
     convert_sparse_network(model.language_model.encoder.layers, pruning_method="pst", weight_rank=8, weight_beta=1.0,
-                           mask_rank=8, mask_alpha1=1.0, mask_alpha2=1.0, block_size=1)
+                           mask_rank=8, mask_alpha1=1.0, mask_alpha2=1.0, block_size=16)
 
     return model
 

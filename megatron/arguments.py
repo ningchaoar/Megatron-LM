@@ -519,6 +519,8 @@ def _add_training_args(parser):
                        'This kernel supports only a set of hidden sizes. Please '
                        'check persist_ln_hidden_sizes if your hidden '
                        'size is supported.')
+    group.add_argument('--enable-sparse-mode', action='store_true',
+                       help='Enable PST method for sparse training')
     return parser
 
 

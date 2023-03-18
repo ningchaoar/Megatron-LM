@@ -367,7 +367,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Optimizer.
     if not release and not args.finetune and not args.no_load_optim:
         try:
-            if optimizer is not None:
+            if optimizer is not None and not args.enable_sparse_mode:
                 optimizer.load_state_dict(state_dict['optimizer'])
             if lr_scheduler is not None:
                 lr_scheduler.load_state_dict(state_dict['lr_scheduler'])

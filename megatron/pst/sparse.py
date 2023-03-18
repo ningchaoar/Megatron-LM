@@ -47,7 +47,8 @@ class SparseLinear(nn.Linear):
         mask_rank = 8,
         mask_alpha1 = 1.0,
         mask_alpha2 = 1.0,
-        block_size = 1
+        block_size = 1,
+        skip_bias_add=False
     ):
         super().__init__(in_features=in_features, out_features=out_features, bias=bias)
         self.pruning_method = pruning_method
@@ -59,6 +60,7 @@ class SparseLinear(nn.Linear):
         self.mask_alpha2 = mask_alpha2
 
         self.cur_sparsity = 0.0
+        self.skip_bias_add = skip_bias_add
 
         if self.pruning_method == "pst":
             # create trainable params
@@ -86,11 +88,14 @@ class SparseLinear(nn.Linear):
 
         # By Angel, test block
         self.block_size = block_size
-        self.conv = nn.Conv2d(1, 4, kernel_size = block_size//2, stride = block_size//2, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
+        # Hard coded just for test
+        kernel_size = 8
+        stride = 8
+        self.conv = nn.Conv2d(1, 4, kernel_size=kernel_size, stride=stride, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
         set_tensor_model_parallel_attributes(self.conv.weight, True, 0, 1)
-        self.pooling = nn.MaxPool2d(kernel_size = 2)
+        self.pooling = nn.MaxPool2d(kernel_size=2)
         #self.pooling = nn.MaxPool2d(kernel_size = block_size)
-        self.unsampling = nn.UpsamplingNearest2d(scale_factor = block_size)
+        self.unsampling = nn.UpsamplingNearest2d(scale_factor = self.block_size)
         # Done
 
     def forward(self, inputs):
@@ -119,10 +124,17 @@ class SparseLinear(nn.Linear):
             # Done
 
             masked_weight = mask * weight
-
-            return F.linear(inputs, masked_weight, self.bias), self.bias
+            if self.bias is None or self.skip_bias_add:
+                output = F.linear(inputs, masked_weight)
+            else:
+                output =  F.linear(inputs, masked_weight, self.bias)
+            return output, self.bias
         else:
-            return F.linear(inputs, self.weight, self.bias), self.bias
+            if self.bias is None or self.skip_bias_add:
+                output = F.linear(inputs, self.weight)
+            else:
+                output =  F.linear(inputs, self.weight, self.bias)
+            return output, self.bias
     
     def convert(self):
         if self.pruning_method == "pst":
