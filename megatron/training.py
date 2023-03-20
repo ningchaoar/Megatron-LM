@@ -663,7 +663,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         if torch.distributed.get_rank() == 0:
             wandb.login(key="5d0c34bbbd4d0b7068def09b3ce97564a5ed9291")
             wandb.init(project="torch-gpt3-gpu", settings=wandb.Settings(console="wrap"),
-                    name='gpt3xl_openwebtext_bs16_gbs512_lr2e-4_sparse0.97_block16_init43000_start44000_end50000')
+                    name='gpt3xl_openwebtext_bs16_gbs512_lr2e-4_sparse0.97_block16_init0_start1000_end6000')
             wandb_config = vars(args)
             # wandb_config['sdk_version'] = get_sdk_version()
             wandb.config.update(wandb_config)
@@ -706,9 +706,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                           grad_norm, params_norm, num_zeros_in_grad)
 
         # update network sparsity ratio
-        # start = 44000, end = 50000
-        cur_sparsity = schedule_sparsity_ratio(iteration, total_step=args.train_iters, initial_warmup=0.22, 
-                                               final_warmup=0.75, initial_sparsity=0.0, final_sparsity=0.97)
+        cur_sparsity = schedule_sparsity_ratio(iteration, total_step=args.train_iters, initial_warmup=0.1, 
+                                               final_warmup=0.6, initial_sparsity=0.0, final_sparsity=0.97)
         for model_module in model:
             update_network_sparsity(model_module, cur_sparsity)
 

@@ -340,7 +340,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Check arguments.
     assert args.consumed_train_samples == 0
     assert args.consumed_valid_samples == 0
-    if 'args' in state_dict:
+    if not args.finetune and 'args' in state_dict:
         checkpoint_args = state_dict['args']
         check_checkpoint_args(checkpoint_args)
         args.consumed_train_samples = getattr(checkpoint_args,
