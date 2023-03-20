@@ -30,6 +30,7 @@ def parse_args(extra_args_provider=None, defaults={},
     parser = _add_network_size_args(parser)
     parser = _add_regularization_args(parser)
     parser = _add_training_args(parser)
+    parser = _add_sparse_args(parser)
     parser = _add_initialization_args(parser)
     parser = _add_learning_rate_args(parser)
     parser = _add_checkpointing_args(parser)
@@ -209,6 +210,7 @@ def parse_args(extra_args_provider=None, defaults={},
             assert args.lr_warmup_samples == 0, \
                 'can only specify one of lr-warmup-fraction ' \
                 'and lr-warmup-samples'
+
 
     # Check required arguments.
     required_args = ['num_layers', 'hidden_size', 'num_attention_heads',
@@ -519,8 +521,33 @@ def _add_training_args(parser):
                        'This kernel supports only a set of hidden sizes. Please '
                        'check persist_ln_hidden_sizes if your hidden '
                        'size is supported.')
+    return parser
+
+
+def _add_sparse_args(parser):
+    group = parser.add_argument_group(title='sparsity')
     group.add_argument('--enable-sparse-mode', action='store_true',
-                       help='Enable PST method for sparse training')
+                       help='Enable PST method for sparse training.')
+    group.add_argument('--sparse-block-size', type=int, default=1,
+                       help='Block size used for blocked sparse training.')
+    group.add_argument('--sparse-kernel-size', type=int, default=1,
+                       help='Kernel size used for blocked sparse training.')
+    group.add_argument('--sparse-stride', type=int, default=1,
+                       help='Stride used for blocked sparse training.')
+    group.add_argument('--initial-sparsity', type=float, default=0.0,
+                       help='Initial sparsity ratio for sparse training.')
+    group.add_argument('--final-sparsity', type=float, default=0.97,
+                       help='Final sparsity ratio for sparse training.')
+    group.add_argument('--sparse-weight-beta', type=float, default=1.0,
+                       help='Final sparsity ratio for sparse training.')
+    group.add_argument('--sparse-mask-alpha1', type=float, default=1.0,
+                       help='Final sparsity ratio for sparse training.')
+    group.add_argument('--sparse-mask-alpha2', type=float, default=1.0,
+                       help='Final sparsity ratio for sparse training.')
+    group.add_argument('--sparse-initial-warmup', type=float, default=0.2,
+                       help='Final sparsity ratio for sparse training.')
+    group.add_argument('--sparse-final-warmup', type=float, default=0.25,
+                       help='Final sparsity ratio for sparse training.')
     return parser
 
 

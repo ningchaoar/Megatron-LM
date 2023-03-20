@@ -48,6 +48,8 @@ class SparseLinear(nn.Linear):
         mask_alpha1 = 1.0,
         mask_alpha2 = 1.0,
         block_size = 1,
+        kernel_size = 1,
+        stride= 1,
         skip_bias_add=False
     ):
         super().__init__(in_features=in_features, out_features=out_features, bias=bias)
@@ -88,9 +90,6 @@ class SparseLinear(nn.Linear):
 
         # By Angel, test block
         self.block_size = block_size
-        # Hard coded just for test
-        kernel_size = 8
-        stride = 8
         self.conv = nn.Conv2d(1, 4, kernel_size=kernel_size, stride=stride, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
         set_tensor_model_parallel_attributes(self.conv.weight, True, 0, 1)
         self.pooling = nn.MaxPool2d(kernel_size=2)

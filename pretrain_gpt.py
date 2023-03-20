@@ -32,6 +32,7 @@ from megatron.pst.utils import convert_sparse_network
 
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
+    args = get_args()
 
     print_rank_0('building GPT model ...')
     model = GPTModel(
@@ -41,8 +42,11 @@ def model_provider(pre_process=True, post_process=True):
         post_process=post_process
     )
 
-    convert_sparse_network(model.language_model.encoder.layers, pruning_method="pst", weight_rank=8, weight_beta=1.0,
-                           mask_rank=8, mask_alpha1=1.0, mask_alpha2=1.0, block_size=16)
+    if args.enable_sparse_mode:
+        convert_sparse_network(model.language_model.encoder.layers, pruning_method="pst",
+                            weight_rank=8, weight_beta=args.sparse_weight_beta,
+                            mask_rank=8, mask_alpha1=args.sparse_mask_alpha1, mask_alpha2=args.sparse_mask_alpha2,
+                            block_size=args.sparse_block_size, kernel_size=args.sparse_kernel_size, stride=args.sparse_stride)
 
     return model
 

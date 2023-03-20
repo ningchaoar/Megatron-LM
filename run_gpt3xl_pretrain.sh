@@ -10,7 +10,8 @@ NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 DATA_PATH=./datas/openwebtext_text_document
-CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_bs16_gbs512_lr2e-4_sparse0.97_block16_init0_start1000_end6000
+CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_bs16_gbs64_lr2e-4_continue_with_optimizer_state
+# CHECKPOINT_PATH=./checkpoints/gpt3xl_openwebtext_bs16_gbs64_lr2e-4_sparse0.97_block1_init0_start1000_end6000
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
@@ -24,6 +25,11 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --seq-length 2048 \
        --max-position-embeddings 2048 \
        --enable-sparse-mode \
+       --sparse-block-size 1 \
+       --sparse-kernel-size 1 \
+       --sparse-stride 1 \
+       --final-sparsity 0.97 \
+       --sparse-weight-beta 0.01 \
        --train-iters 10000 \
        --lr-decay-iters 8000 \
        --save $CHECKPOINT_PATH \
@@ -34,17 +40,16 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --data-impl mmap \
        --split 980,19,1 \
        --distributed-backend nccl \
-       --lr 0.0001 \
+       --lr 0.0002 \
        --lr-decay-style cosine \
-       --min-lr 5.0e-6 \
+       --min-lr 1e-5 \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
-       --lr-warmup-fraction 0.1 \
+       --lr-warmup-fraction 0.01 \
        --activations-checkpoint-method uniform \
-       --use-wandb \
        --log-interval 1 \
-       --save-interval 100 \
+       --save-interval 1000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --fp16 2>&1 \
-       --finetune | tee logs/gpt3xl_openwebtext_bs16_gbs512_lr2e-4_$time.log
+       --fp16 \
+       --finetune 2>&1 | tee logs/gpt3xl_openwebtext_bs16_gbs64_lr2e-4_$time.log

@@ -642,8 +642,9 @@ def save_checkpoint_and_time(iteration, model, optimizer, lr_scheduler):
     torch.distributed.barrier()
     timers('save-checkpoint').start()
     save_checkpoint(iteration, model, optimizer, lr_scheduler)
-    sparse_model_path = os.path.join(os.path.dirname(get_checkpoint_name(args.save, iteration)), 'sparse_model.pt') 
-    save_sparse_model(model, sparse_model_path)
+    if args.enable_sparse_mode:
+        sparse_model_path = os.path.join(os.path.dirname(get_checkpoint_name(args.save, iteration)), 'sparse_model.pt') 
+        save_sparse_model(model, sparse_model_path)
     torch.distributed.barrier()
     timers('save-checkpoint').stop()
     timers.log(['save-checkpoint'])
@@ -663,7 +664,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         if torch.distributed.get_rank() == 0:
             wandb.login(key="5d0c34bbbd4d0b7068def09b3ce97564a5ed9291")
             wandb.init(project="torch-gpt3-gpu", settings=wandb.Settings(console="wrap"),
-                    name='gpt3xl_openwebtext_bs16_gbs512_lr2e-4_sparse0.97_block16_init0_start1000_end6000')
+                    name='gpt3xl_openwebtext_bs16_gbs64_lr2e-4_continue_with_optState')
             wandb_config = vars(args)
             # wandb_config['sdk_version'] = get_sdk_version()
             wandb.config.update(wandb_config)
@@ -706,10 +707,13 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                           grad_norm, params_norm, num_zeros_in_grad)
 
         # update network sparsity ratio
-        cur_sparsity = schedule_sparsity_ratio(iteration, total_step=args.train_iters, initial_warmup=0.1, 
-                                               final_warmup=0.6, initial_sparsity=0.0, final_sparsity=0.97)
-        for model_module in model:
-            update_network_sparsity(model_module, cur_sparsity)
+        if args.enable_sparse_mode:
+            cur_sparsity = schedule_sparsity_ratio(iteration, total_step=args.train_iters, initial_warmup=args.sparse_initial_warmup, 
+                                                   final_warmup=args.sparse_final_warmup, initial_sparsity=args.initial_sparsity, final_sparsity=args.final_sparsity)
+            for model_module in model:
+                update_network_sparsity(model_module, cur_sparsity)
+        else:
+            cur_sparsity = 0.0
 
         # Wandb logging
         if torch.distributed.is_initialized() and args.use_wandb:
