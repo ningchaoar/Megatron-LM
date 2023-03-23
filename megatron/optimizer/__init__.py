@@ -44,15 +44,55 @@ def _get_params_for_weight_decay_optimization(modules):
                 no_weight_decay_params['params'].extend(
                     [p for n, p in list(module_._parameters.items())
                      if p is not None and n == 'bias'])
-
     return weight_decay_params, no_weight_decay_params
+
+
+def _get_params_for_sparse_model(modules):
+    """Divide params into: 
+        1. dense params with wd.
+        2. dense params without wd.
+        3. pst params with wd.
+        4. pst params without wd.
+    """
+    dense_wd_params = {'params': []}
+    dense_no_wd_params = {'params': [], 'weight_decay': 0.0}
+
+    pst_name = set(['weight_U', 'weight_V', 'mask_scores_A', 'mask_scores_B', 'mask_scores_R', 'mask_scores_C'])
+    pst_wd_params = {'params': []}
+    pst_no_wd_params = {'params': [], 'weight_decay': 0.0}
+    
+    for module in modules:
+        for module_ in module.modules():
+            if isinstance(module_, LayerNorm):
+                dense_no_wd_params['params'].extend(
+                    [p for p in list(module_._parameters.values())
+                     if p is not None])
+            else:
+                for name, param in module_._parameters.items():
+                    if param is None:
+                        continue
+                    if name in pst_name:
+                        pst_wd_params['params'].append(param)
+                    elif len(param.shape) == 4:  # conv.weight
+                        pst_wd_params['params'].append(param)
+                    elif param.shape[0] == 4:  # conv.bias
+                        pst_no_wd_params['params'].append(param)
+                    elif name == 'bias':
+                        dense_no_wd_params['params'].append(param)
+                    else:
+                        dense_wd_params['params'].append(param)
+
+    return dense_wd_params, dense_no_wd_params, pst_wd_params, pst_no_wd_params
 
 
 def get_megatron_optimizer(model):
     args = get_args()
 
     # Base optimizer.
-    param_groups = _get_params_for_weight_decay_optimization(model)
+    if args.enable_sparse_mode:
+        param_groups = _get_params_for_sparse_model(model)
+    else:
+        param_groups = _get_params_for_weight_decay_optimization(model)
     if args.optimizer == 'adam':
         optimizer = Adam(param_groups,
                          lr=args.lr,

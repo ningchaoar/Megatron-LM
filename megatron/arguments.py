@@ -544,9 +544,9 @@ def _add_sparse_args(parser):
                        help='Final sparsity ratio for sparse training.')
     group.add_argument('--sparse-mask-alpha2', type=float, default=1.0,
                        help='Final sparsity ratio for sparse training.')
-    group.add_argument('--sparse-initial-warmup', type=float, default=0.2,
+    group.add_argument('--sparse-initial-warmup', type=float, default=0.15,
                        help='Final sparsity ratio for sparse training.')
-    group.add_argument('--sparse-final-warmup', type=float, default=0.25,
+    group.add_argument('--sparse-final-warmup', type=float, default=0.10,
                        help='Final sparsity ratio for sparse training.')
     return parser
 

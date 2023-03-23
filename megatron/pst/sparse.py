@@ -66,11 +66,11 @@ class SparseLinear(nn.Linear):
 
         if self.pruning_method == "pst":
             # create trainable params
-            self.weight_U = nn.Parameter(torch.randn(out_features, self.weight_rank, device=torch.cuda.current_device(), dtype=torch.half))
-            set_tensor_model_parallel_attributes(self.weight_U, True, 0, 1)
+            # self.weight_U = nn.Parameter(torch.randn(out_features, self.weight_rank, device=torch.cuda.current_device(), dtype=torch.half))
+            # set_tensor_model_parallel_attributes(self.weight_U, True, 0, 1)
 
-            self.weight_V = nn.Parameter(torch.zeros(self.weight_rank, in_features, device=torch.cuda.current_device(), dtype=torch.half))
-            set_tensor_model_parallel_attributes(self.weight_V, True, 0, 1)
+            # self.weight_V = nn.Parameter(torch.zeros(self.weight_rank, in_features, device=torch.cuda.current_device(), dtype=torch.half))
+            # set_tensor_model_parallel_attributes(self.weight_V, True, 0, 1)
 
             self.mask_scores_A = nn.Parameter(torch.randn(out_features, self.mask_rank, device=torch.cuda.current_device(), dtype=torch.half))
             set_tensor_model_parallel_attributes(self.mask_scores_A, True, 0, 1)
@@ -84,22 +84,25 @@ class SparseLinear(nn.Linear):
             self.mask_scores_C = nn.Parameter(torch.zeros(in_features, device=torch.cuda.current_device(), dtype=torch.half))
             set_tensor_model_parallel_attributes(self.mask_scores_C, True, 0, 1)
 
-            self.weight.requires_grad = False
-            if self.bias is not None:
-                self.bias.requires_grad = False
+            # self.weight.requires_grad = False
+            # if self.bias is not None:
+            #     self.bias.requires_grad = False
 
-        # By Angel, test block
-        self.block_size = block_size
-        self.conv = nn.Conv2d(1, 4, kernel_size=kernel_size, stride=stride, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
-        set_tensor_model_parallel_attributes(self.conv.weight, True, 0, 1)
-        self.pooling = nn.MaxPool2d(kernel_size=2)
-        #self.pooling = nn.MaxPool2d(kernel_size = block_size)
-        self.unsampling = nn.UpsamplingNearest2d(scale_factor = self.block_size)
-        # Done
+            # By Angel, test block
+            self.block_size = block_size
+            self.conv = nn.Conv2d(1, 4, kernel_size=kernel_size, stride=stride, bias=False, device=torch.cuda.current_device(), dtype=torch.half)
+            set_tensor_model_parallel_attributes(self.conv.weight, True, 0, 1)
+            self.pooling = nn.MaxPool2d(kernel_size=2)
+            #self.pooling = nn.MaxPool2d(kernel_size = block_size)
+            self.unsampling = nn.UpsamplingNearest2d(scale_factor = self.block_size)
+            # Done
+        elif self.pruning_method == 'imap':
+            ...
 
     def forward(self, inputs):
         if self.pruning_method == "pst":
-            weight = self.weight + self.weight_beta * self.weight_U @ self.weight_V
+            # weight = self.weight + self.weight_beta * self.weight_U @ self.weight_V
+            weight = self.weight
             mask_scores = weight.abs() + self.mask_alpha1 * self.mask_scores_A @ self.mask_scores_B + \
              self.mask_alpha2 * (self.mask_scores_R.unsqueeze(1) + self.mask_scores_C.unsqueeze(0))
 
@@ -122,6 +125,7 @@ class SparseLinear(nn.Linear):
                 mask = mask.reshape(list(mask.size()[4 - len(old_size):]))
             # Done
 
+            # TODO: 也许可以限制这里的梯度回传到weight上，weight专注于tuning，mask专注于pruning，互不干扰
             masked_weight = mask * weight
             if self.bias is None or self.skip_bias_add:
                 output = F.linear(inputs, masked_weight)
@@ -137,7 +141,8 @@ class SparseLinear(nn.Linear):
     
     def convert(self):
         if self.pruning_method == "pst":
-            weight = self.weight + self.weight_beta * self.weight_U @ self.weight_V
+            # weight = self.weight + self.weight_beta * self.weight_U @ self.weight_V
+            weight = self.weight
             mask_scores = weight.abs() + self.mask_alpha1 * self.mask_scores_A @ self.mask_scores_B + \
              self.mask_alpha2 * (self.mask_scores_R.unsqueeze(1) + self.mask_scores_C.unsqueeze(0))
 

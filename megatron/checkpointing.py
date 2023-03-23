@@ -336,20 +336,20 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
                              'iteration from checkpoint {}, exiting'.format(
                                  checkpoint_name))
                 sys.exit()
-
+    iteration = 0
     # Check arguments.
     assert args.consumed_train_samples == 0
     assert args.consumed_valid_samples == 0
-    if not args.finetune and 'args' in state_dict:
-        checkpoint_args = state_dict['args']
-        check_checkpoint_args(checkpoint_args)
-        args.consumed_train_samples = getattr(checkpoint_args,
-                                              'consumed_train_samples', 0)
-        update_num_microbatches(consumed_samples=args.consumed_train_samples)
-        args.consumed_valid_samples = getattr(checkpoint_args,
-                                              'consumed_valid_samples', 0)
-    else:
-        print_rank_0('could not find arguments in the checkpoint ...')
+    # if not args.finetune and 'args' in state_dict:
+    #     checkpoint_args = state_dict['args']
+    #     check_checkpoint_args(checkpoint_args)
+    #     args.consumed_train_samples = getattr(checkpoint_args,
+    #                                           'consumed_train_samples', 0)
+    #     update_num_microbatches(consumed_samples=args.consumed_train_samples)
+    #     args.consumed_valid_samples = getattr(checkpoint_args,
+    #                                           'consumed_valid_samples', 0)
+    # else:
+    #     print_rank_0('could not find arguments in the checkpoint ...')
 
     # Model.
     if len(model) == 1:
@@ -367,10 +367,23 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Optimizer.
     if not release and not args.finetune and not args.no_load_optim:
         try:
-            if optimizer is not None and not args.enable_sparse_mode:
-                optimizer.load_state_dict(state_dict['optimizer'])
-            if lr_scheduler is not None:
-                lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
+            if optimizer is not None:
+                if args.enable_sparse_mode:
+                    new_param_groups = optimizer.state_dict()['optimizer']['param_groups']
+                    new_params = optimizer.state_dict()['fp32_from_fp16_params']
+                    for i in range(len(state_dict['optimizer']['optimizer']['param_groups']), len(new_param_groups)):
+                        # Add missing tensor ids
+                        state_dict['optimizer']['optimizer']['param_groups'].append(new_param_groups[i])
+                        # Add missing tensors
+                        state_dict['optimizer']['fp32_from_fp16_params'].append(new_params[i])
+                        # Add missing id/tensor pairs
+                        for idx, t_id in enumerate(new_param_groups[i]['params']):
+                            state_dict['optimizer']['optimizer']['state'][t_id] = {'exp_avg': torch.zeros_like(new_params[i][idx], device=torch.cuda.current_device(), dtype=torch.float32),
+                                                                                   'exp_avg_sq': torch.zeros_like(new_params[i][idx], device=torch.cuda.current_device(), dtype=torch.float32)}
+                else:
+                    optimizer.load_state_dict(state_dict['optimizer'])
+            # if lr_scheduler is not None:
+            #     lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
         except KeyError:
             print_rank_0('Unable to load optimizer from checkpoint {}. '
                          'Specify --no-load-optim or --finetune to prevent '
