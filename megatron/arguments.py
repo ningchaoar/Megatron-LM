@@ -528,6 +528,8 @@ def _add_sparse_args(parser):
     group = parser.add_argument_group(title='sparsity')
     group.add_argument('--enable-sparse-mode', action='store_true',
                        help='Enable PST method for sparse training.')
+    group.add_argument('--load-from-sparse', action='store_true',
+                       help='Load sparse model with weights that are already converted')
     group.add_argument('--sparse-block-size', type=int, default=1,
                        help='Block size used for blocked sparse training.')
     group.add_argument('--sparse-kernel-size', type=int, default=1,

@@ -6,7 +6,7 @@ export MASTER_PORT=6000
 VALID_DATA=./datas/lambada_test.jsonl
 VOCAB_FILE=./datas/gpt2-vocab-50256.json
 MERGE_FILE=./datas/gpt2-merges-50256.txt
-CHECKPOINT_PATH=checkpoints/gpt3xl_openwebtext_bs16_gbs512_lr2e-4
+CHECKPOINT_PATH=checkpoints/gpt3xl_openwebtext_bs16_gbs64_lr2e-4_sparse0.97_block1_weightBeta0.01_fullOptState_noUV
 
 COMMON_TASK_ARGS="--num-layers 24 \
                   --hidden-size 2048 \
@@ -21,9 +21,9 @@ python tasks/main.py \
        $COMMON_TASK_ARGS \
        --valid-data $VALID_DATA \
        --tokenizer-type GPT2BPETokenizer \
-       --strict-lambada \
        --merge-file $MERGE_FILE \
        --load $CHECKPOINT_PATH \
+       --load-from-sparse \
        --micro-batch-size 8 \
        --activations-checkpoint-method uniform \
        --log-interval 10 \

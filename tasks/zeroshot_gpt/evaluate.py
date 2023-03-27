@@ -28,6 +28,7 @@ from megatron.model import GPTModel
 from megatron.training import get_model
 from megatron.utils import get_ltor_masks_and_position_ids, unwrap_model
 from megatron.p2p_communication import recv_forward, send_forward
+from megatron.pst.utils import convert_sparse_network
 from tasks.finetune_utils import build_data_loader
 
 from .datasets import build_dataset
@@ -44,6 +45,8 @@ def get_model_provider(eval_metric):
     def model_provider(pre_process=True, post_process=True):
         """Build the model."""
 
+        args = get_args()
+
         if eval_metric == 'loss':
             parallel_output = True
         elif eval_metric == 'accuracy':
@@ -55,7 +58,11 @@ def get_model_provider(eval_metric):
         print_rank_0('building GPT model ...')
         model = GPTModel(num_tokentypes=0, parallel_output=parallel_output,
                          pre_process=pre_process, post_process=post_process)
-
+        if not args.load_from_sparse:
+            convert_sparse_network(model.language_model.encoder.layers, pruning_method="pst",
+                                   weight_rank=8, weight_beta=0.01,
+                                   mask_rank=8, mask_alpha1=1.0, mask_alpha2=1.0,
+                                   block_size=1, kernel_size=1, stride=1)
         return model
 
     return model_provider

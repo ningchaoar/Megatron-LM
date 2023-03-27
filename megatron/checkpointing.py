@@ -81,23 +81,24 @@ def ensure_directory_exists(filename):
 
 
 def get_checkpoint_name(checkpoints_path, iteration,
-                        release=False):
+                        release=False, sparse=False):
     """A unified checkpoint name."""
     if release:
         directory = 'release'
     else:
         directory = 'iter_{:07d}'.format(iteration)
+    file_name = 'sparse_model.pt' if sparse else 'model_optim_rng.pt'
     # Use both the tensor and pipeline MP rank.
     if mpu.get_pipeline_model_parallel_world_size() == 1:
         return os.path.join(checkpoints_path, directory,
                             'mp_rank_{:02d}'.format(
                                 mpu.get_tensor_model_parallel_rank()),
-                            'model_optim_rng.pt')
+                            file_name)
     return os.path.join(checkpoints_path, directory,
                         'mp_rank_{:02d}_{:03d}'.format(
                             mpu.get_tensor_model_parallel_rank(),
                             mpu.get_pipeline_model_parallel_rank()),
-                        'model_optim_rng.pt')
+                        file_name)
 
 
 def get_checkpoint_tracker_filename(checkpoints_path):
@@ -297,7 +298,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     iteration, release = read_metadata(tracker_filename)
 
     # Checkpoint.
-    checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
+    checkpoint_name = get_checkpoint_name(load_dir, iteration, release, sparse=args.load_from_sparse)
     print_rank_0(f' loading checkpoint from {args.load} at iteration {iteration}')
 
     # Load the checkpoint.
@@ -323,19 +324,19 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     set_checkpoint_version(state_dict.get('checkpoint_version', 0))
 
     # Set iteration.
-    if args.finetune or release:
-        iteration = 0
-    else:
-        try:
-            iteration = state_dict['iteration']
-        except KeyError:
-            try:  # Backward compatible with older checkpoints
-                iteration = state_dict['total_iters']
-            except KeyError:
-                print_rank_0('A metadata file exists but unable to load '
-                             'iteration from checkpoint {}, exiting'.format(
-                                 checkpoint_name))
-                sys.exit()
+    # if args.finetune or release:
+    #     iteration = 0
+    # else:
+    #     try:
+    #         iteration = state_dict['iteration']
+    #     except KeyError:
+    #         try:  # Backward compatible with older checkpoints
+    #             iteration = state_dict['total_iters']
+    #         except KeyError:
+    #             print_rank_0('A metadata file exists but unable to load '
+    #                          'iteration from checkpoint {}, exiting'.format(
+    #                              checkpoint_name))
+    #             sys.exit()
     iteration = 0
     # Check arguments.
     assert args.consumed_train_samples == 0
@@ -353,7 +354,11 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
 
     # Model.
     if len(model) == 1:
-        model[0].load_state_dict(state_dict['model'], strict=strict)
+        if args.load_from_sparse:
+            sparse_state_dict = load_sparse_model(state_dict)
+            model[0].load_state_dict(sparse_state_dict, strict=strict)
+        else:
+            model[0].load_state_dict(state_dict['model'], strict=strict)
     else:
         for i in range(len(model)):
             mpu.set_virtual_pipeline_model_parallel_rank(i)
@@ -362,7 +367,8 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Fix up query/key/value matrix ordering if needed
     checkpoint_version = get_checkpoint_version()
     print_rank_0(f' checkpoint version {checkpoint_version}')
-    fix_query_key_value_ordering(model, checkpoint_version)
+    if not args.load_from_sparse:
+        fix_query_key_value_ordering(model, checkpoint_version)
 
     # Optimizer.
     if not release and not args.finetune and not args.no_load_optim:
@@ -459,3 +465,18 @@ def load_biencoder_checkpoint(model, only_query_model=False,
 
     return model
 
+
+def load_sparse_model(sparse_state_dict):
+    new_state_dict = {}
+    new_state_dict["language_model"] = {"embedding": {"word_embeddings": {}, "position_embeddings": {}}, "encoder": {}}
+    for key in sparse_state_dict:
+        if 'conv' in key:
+            continue
+        if "word_embedding" in key:
+            new_state_dict["language_model"]["embedding"]["word_embeddings"]["weight"] = sparse_state_dict[key]
+        elif "position_embeddings" in key:
+            new_state_dict["language_model"]["embedding"]["position_embeddings"]["weight"] = sparse_state_dict[key]
+        else:
+            new_key = key.split(".", 2)[-1]
+            new_state_dict["language_model"]["encoder"][new_key] = sparse_state_dict[key]
+    return new_state_dict
