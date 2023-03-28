@@ -324,41 +324,40 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     set_checkpoint_version(state_dict.get('checkpoint_version', 0))
 
     # Set iteration.
-    # if args.finetune or release:
-    #     iteration = 0
-    # else:
-    #     try:
-    #         iteration = state_dict['iteration']
-    #     except KeyError:
-    #         try:  # Backward compatible with older checkpoints
-    #             iteration = state_dict['total_iters']
-    #         except KeyError:
-    #             print_rank_0('A metadata file exists but unable to load '
-    #                          'iteration from checkpoint {}, exiting'.format(
-    #                              checkpoint_name))
+    if args.finetune or release:
+        iteration = 0
+    else:
+        try:
+            iteration = state_dict['iteration']
+        except KeyError:
+            try:  # Backward compatible with older checkpoints
+                iteration = state_dict['total_iters']
+            except KeyError:
+                print_rank_0('A metadata file exists but unable to load '
+                             'iteration from checkpoint {}, exiting'.format(
+                                 checkpoint_name))
     #             sys.exit()
-    iteration = 0
+    # iteration = 0
     # Check arguments.
     assert args.consumed_train_samples == 0
     assert args.consumed_valid_samples == 0
-    # if not args.finetune and 'args' in state_dict:
-    #     checkpoint_args = state_dict['args']
-    #     check_checkpoint_args(checkpoint_args)
-    #     args.consumed_train_samples = getattr(checkpoint_args,
-    #                                           'consumed_train_samples', 0)
-    #     update_num_microbatches(consumed_samples=args.consumed_train_samples)
-    #     args.consumed_valid_samples = getattr(checkpoint_args,
-    #                                           'consumed_valid_samples', 0)
-    # else:
-    #     print_rank_0('could not find arguments in the checkpoint ...')
+    if not args.finetune and 'args' in state_dict:
+        checkpoint_args = state_dict['args']
+        check_checkpoint_args(checkpoint_args)
+        args.consumed_train_samples = getattr(checkpoint_args,
+                                              'consumed_train_samples', 0)
+        update_num_microbatches(consumed_samples=args.consumed_train_samples)
+        args.consumed_valid_samples = getattr(checkpoint_args,
+                                              'consumed_valid_samples', 0)
+    else:
+        print_rank_0('could not find arguments in the checkpoint ...')
+
+    if args.load_from_sparse:
+        state_dict = load_sparse_model(state_dict)
 
     # Model.
     if len(model) == 1:
-        if args.load_from_sparse:
-            sparse_state_dict = load_sparse_model(state_dict)
-            model[0].load_state_dict(sparse_state_dict, strict=strict)
-        else:
-            model[0].load_state_dict(state_dict['model'], strict=strict)
+        model[0].load_state_dict(state_dict['model'], strict=strict)
     else:
         for i in range(len(model)):
             mpu.set_virtual_pipeline_model_parallel_rank(i)
@@ -467,6 +466,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
 
 
 def load_sparse_model(sparse_state_dict):
+    output_state_dict = {}
     new_state_dict = {}
     new_state_dict["language_model"] = {"embedding": {"word_embeddings": {}, "position_embeddings": {}}, "encoder": {}}
     for key in sparse_state_dict:
@@ -479,4 +479,6 @@ def load_sparse_model(sparse_state_dict):
         else:
             new_key = key.split(".", 2)[-1]
             new_state_dict["language_model"]["encoder"][new_key] = sparse_state_dict[key]
-    return new_state_dict
+    output_state_dict["model"] = new_state_dict
+    output_state_dict["checkpoint_version"] = 3.0
+    return output_state_dict
